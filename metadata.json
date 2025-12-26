@@ -1,5 +1,5 @@
 {
   "name": "EcoMaster - Tutor Inteligente de Hacienda Pública",
-  "description": "Un asistente avanzado para estudiantes de Economía Pública que permite cargar material de estudio, resolver dudas complejas, generar ejercicios prácticos y realizar tests de autoevaluación.",
+  "description": "Chatbot avanzado para estudiantes de economía con soporte para PDFs, ejercicios numéricos y tests autogenerados.",
   "requestFramePermissions": []
 }

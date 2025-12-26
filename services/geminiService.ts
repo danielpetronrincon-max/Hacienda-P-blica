@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 import { QuizQuestion, Exercise } from "../types";
 
@@ -8,33 +7,30 @@ Tu misión es ayudar a estudiantes a aprobar y entender la asignatura.
 NORMAS DE RESPUESTA:
 1. PRIORIDAD: Usa los apuntes subidos por el profesor si están disponibles.
 2. BUSQUEDA: Si la información no está en los apuntes o necesitas datos actuales (leyes, presupuestos, noticias), usa Google Search.
-3. FORMATO: Usa Markdown. Para fórmulas matemáticas usa formato claro (ej: Q = 100 - 2P).
+3. FORMATO: Usa Markdown. Para fórmulas matemáticas usa formato claro.
 4. ESTILO: Profesional, académico pero cercano. No des solo la respuesta, explica el razonamiento económico (eficiencia vs equidad).`;
 
+// Inicialización segura para Netlify
 const getAI = () => {
-  // En Netlify/Vercel la API_KEY suele venir en process.env.API_KEY
-  // Intentamos obtenerla de varias fuentes comunes
-  const apiKey = process.env.API_KEY || (window as any).process?.env?.API_KEY;
-  
+  const apiKey = process.env.API_KEY;
   if (!apiKey) {
-    console.warn("API_KEY no encontrada en el entorno. Asegúrate de configurar la variable de entorno API_KEY en Netlify.");
+    throw new Error("API_KEY_MISSING");
   }
-  
-  return new GoogleGenAI({ apiKey: apiKey || "" });
+  return new GoogleGenAI({ apiKey });
 };
 
-export async function askGemini(prompt: string, knowledgeBase: string, history: {role: string, text: string}[]) {
+export async function askGemini(prompt: string, knowledgeBase: string, history: {role: 'user' | 'model', text: string}[]) {
   try {
     const ai = getAI();
     const contents = [
-      ...history.map(m => ({ role: m.role === 'user' ? 'user' : 'model', parts: [{ text: m.text }] })),
+      ...history.map(m => ({ role: m.role, parts: [{ text: m.text }] })),
       { 
         role: 'user', 
         parts: [{ 
-          text: `CONTEXTO DE CLASE (Apuntes del profesor):\n${knowledgeBase || "No hay apuntes específicos subidos."}\n\nPREGUNTA DEL ALUMNO: ${prompt}` 
+          text: `CONTEXTO DE CLASE (Apuntes):\n${knowledgeBase || "Utiliza tu conocimiento general de Hacienda Pública."}\n\nPREGUNTA DEL ALUMNO: ${prompt}` 
         }] 
       }
-    ];
+    ] as any;
 
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
@@ -46,13 +42,16 @@ export async function askGemini(prompt: string, knowledgeBase: string, history: 
       },
     });
 
-    const text = response.text || "No he podido generar una respuesta.";
+    const text = response.text || "Lo siento, no he podido procesar esa consulta.";
     const sources = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
 
     return { text, sources };
   } catch (error: any) {
     console.error("Gemini Error:", error);
-    return { text: `Lo siento, hay un problema con la conexión al tutor: ${error.message}. Por favor, verifica la configuración de la API Key.`, sources: [] };
+    if (error.message === "API_KEY_MISSING") {
+      return { text: "⚠️ Error: No se ha configurado la API_KEY en las variables de entorno de Netlify.", sources: [] };
+    }
+    return { text: "Hubo un error al conectar con el Tutor IA. Por favor, revisa la conexión.", sources: [] };
   }
 }
 
@@ -92,7 +91,7 @@ export async function generateExercise(knowledgeBase: string): Promise<Exercise>
     const ai = getAI();
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: [{ role: 'user', parts: [{ text: `Crea un problema numérico de Hacienda Pública (ej: cálculo de impuesto, pérdida de eficiencia, o equilibrio con externalidad) basado en esto:\n${knowledgeBase}` }] }],
+      contents: [{ role: 'user', parts: [{ text: `Crea un problema numérico de Hacienda Pública basado en esto:\n${knowledgeBase}` }] }],
       config: {
         systemInstruction: SYSTEM_PROMPT,
         responseMimeType: "application/json",

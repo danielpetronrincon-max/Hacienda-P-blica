@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import Library from './components/Library';
@@ -13,12 +12,12 @@ const App: React.FC = () => {
   const [mode, setMode] = useState<AppMode>(AppMode.CHAT);
   const [isAdmin, setIsAdmin] = useState(false);
   
-  // Sincronización crucial: Si el admin ha subido cosas, usamos eso. Si no, lo oficial.
   const [localKnowledge, setLocalKnowledge] = useState<KnowledgeItem[]>(() => {
     const saved = localStorage.getItem('eco_master_admin_data');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        return parsed.length > 0 ? parsed : OFFICIAL_KNOWLEDGE;
       } catch (e) {
         return OFFICIAL_KNOWLEDGE;
       }
@@ -34,11 +33,13 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // Para el alumno, priorizamos lo oficial, pero si el profesor está probando en local, ve lo suyo.
-  const currentKnowledge = isAdmin ? localKnowledge : (OFFICIAL_KNOWLEDGE.length > 1 ? OFFICIAL_KNOWLEDGE : localKnowledge);
+  const currentKnowledge = useMemo(() => {
+    // Si hay datos locales (subidos por el usuario en su navegador), los usamos.
+    // Si no, usamos los oficiales definidos en data.ts.
+    return localKnowledge.length > 0 ? localKnowledge : OFFICIAL_KNOWLEDGE;
+  }, [localKnowledge]);
 
   const fullText = useMemo(() => {
-    if (currentKnowledge.length === 0) return "";
     return currentKnowledge.map(k => `TEMA: ${k.title}\nCONTENIDO: ${k.content}`).join('\n\n---\n\n');
   }, [currentKnowledge]);
 
@@ -80,27 +81,19 @@ const App: React.FC = () => {
       />
       
       <main className="flex-1 ml-64 p-10 max-w-7xl mx-auto pb-24">
-        <header className="mb-10 flex justify-between items-start">
-          <div>
-            <div className="flex items-center gap-2 mb-2">
-              <span className={`text-[10px] font-black px-3 py-1 rounded-full tracking-widest uppercase shadow-sm ${isAdmin ? 'bg-rose-500 text-white' : 'bg-indigo-600 text-white'}`}>
-                {isAdmin ? 'SESIÓN DE ADMINISTRADOR' : 'PLATAFORMA DE ESTUDIOS'}
-              </span>
-            </div>
-            <h1 className="text-4xl font-black text-slate-900 tracking-tight">
-              {mode === AppMode.CHAT && "Tutor IA Personal"}
-              {mode === AppMode.CONTENT && "Biblioteca del Curso"}
-              {mode === AppMode.TEST && "Auto-Evaluación"}
-              {mode === AppMode.PRACTICE && "Taller Práctico"}
-              {mode === AppMode.ADMIN && "Panel de Control"}
-            </h1>
-            <p className="text-slate-400 font-medium mt-1">
-              {mode === AppMode.CHAT && "Resuelve dudas complejas sobre Hacienda Pública."}
-              {mode === AppMode.CONTENT && "Accede a todo el material oficial de la asignatura."}
-              {mode === AppMode.TEST && "Pon a prueba tus conocimientos antes del examen."}
-              {mode === AppMode.PRACTICE && "Resuelve casos prácticos numéricos paso a paso."}
-            </p>
+        <header className="mb-10">
+          <div className="flex items-center gap-2 mb-2">
+            <span className={`text-[10px] font-black px-3 py-1 rounded-full tracking-widest uppercase shadow-sm ${isAdmin ? 'bg-rose-500 text-white' : 'bg-indigo-600 text-white'}`}>
+              {isAdmin ? 'ADMINISTRACIÓN' : 'ESTUDIANTE'}
+            </span>
           </div>
+          <h1 className="text-4xl font-black text-slate-900 tracking-tight">
+            {mode === AppMode.CHAT && "Tutor Personal de Hacienda"}
+            {mode === AppMode.CONTENT && "Biblioteca del Curso"}
+            {mode === AppMode.TEST && "Entrenamiento de Examen"}
+            {mode === AppMode.PRACTICE && "Taller Numérico"}
+            {mode === AppMode.ADMIN && "Panel de Gestión"}
+          </h1>
         </header>
 
         <div className="animate-fade-in">
@@ -131,7 +124,7 @@ const App: React.FC = () => {
       <button 
         onClick={toggleAdmin}
         className="fixed bottom-6 right-6 w-12 h-12 bg-slate-900 text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 transition-transform z-[100]"
-        title={isAdmin ? "Salir del modo gestión" : "Entrar como profesor"}
+        title={isAdmin ? "Salir de Admin" : "Acceso Profesor"}
       >
         <i className={`fas ${isAdmin ? 'fa-user-graduate' : 'fa-user-tie'}`}></i>
       </button>
