@@ -2,55 +2,61 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { QuizQuestion, Exercise } from "../types";
 
-const genAI = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
+const SYSTEM_PROMPT = `Eres el "Tutor Pro de Hacienda Pública", un experto docente universitario en Economía del Sector Público.
+Tu misión es ayudar a estudiantes a aprobar y entender la asignatura.
 
-const SYSTEM_PROMPT = `Eres un Profesor Experto en Economía Pública y Hacienda Pública de nivel universitario. 
-Tu objetivo es ayudar a los estudiantes a comprender conceptos fundamentales y avanzados.
-Dominas temas como:
-1. Fallos de mercado: Externalidades (impuestos pigouvianos, Teorema de Coase), Bienes Públicos, Información Asimétrica.
-2. Teoría de la Elección Pública (Arrow, Median Voter).
-3. Gasto Público: Educación, Sanidad, Pensiones.
-4. Ingresos Públicos: Principios impositivos, incidencia fiscal, eficiencia vs equidad, curvas de Laffer.
-5. Federalismo Fiscal y Déficit Público.
+NORMAS DE RESPUESTA:
+1. PRIORIDAD: Usa los apuntes subidos por el profesor si están disponibles.
+2. BUSQUEDA: Si la información no está en los apuntes o necesitas datos actuales (leyes, presupuestos, noticias), usa Google Search.
+3. FORMATO: Usa Markdown. Para fórmulas matemáticas usa formato claro (ej: Q = 100 - 2P).
+4. ESTILO: Profesional, académico pero cercano. No des solo la respuesta, explica el razonamiento económico (eficiencia vs equidad).`;
 
-Cuando respondas dudas, sé pedagógico. Cuando generes ejercicios, asegúrate de que tengan un componente analítico o numérico.
-Usa siempre los materiales proporcionados por el usuario como base principal de conocimiento.`;
+const getAI = () => {
+  const apiKey = process.env.API_KEY || (window as any).process?.env?.API_KEY;
+  if (!apiKey) {
+    throw new Error("Falta la clave de API.");
+  }
+  return new GoogleGenAI({ apiKey });
+};
 
 export async function askGemini(prompt: string, knowledgeBase: string, history: {role: string, text: string}[]) {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
-  
-  const fullPrompt = `Base de conocimiento proporcionada:
----
-${knowledgeBase}
----
-Pregunta del estudiante: ${prompt}`;
-
-  const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
-    contents: [
+  try {
+    const ai = getAI();
+    const contents = [
       ...history.map(m => ({ role: m.role === 'user' ? 'user' : 'model', parts: [{ text: m.text }] })),
-      { role: 'user', parts: [{ text: fullPrompt }] }
-    ],
-    config: {
-      systemInstruction: SYSTEM_PROMPT,
-      temperature: 0.7,
-    },
-  });
+      { 
+        role: 'user', 
+        parts: [{ 
+          text: `CONTEXTO DE CLASE (Apuntes del profesor):\n${knowledgeBase || "No hay apuntes específicos subidos."}\n\nPREGUNTA DEL ALUMNO: ${prompt}` 
+        }] 
+      }
+    ];
 
-  return response.text || "Lo siento, no pude procesar tu solicitud.";
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents,
+      config: {
+        systemInstruction: SYSTEM_PROMPT,
+        tools: [{ googleSearch: {} }],
+        temperature: 0.7,
+      },
+    });
+
+    const text = response.text;
+    const sources = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+
+    return { text, sources };
+  } catch (error: any) {
+    console.error("Gemini Error:", error);
+    return { text: `Error: ${error.message}`, sources: [] };
+  }
 }
 
-export async function generateQuiz(knowledgeBase: string, topic?: string): Promise<QuizQuestion[]> {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
-  
-  const prompt = `Genera un test de autoevaluación de 5 preguntas de opción múltiple sobre ${topic || 'el contenido proporcionado'}. 
-  Asegúrate de que sean preguntas de nivel universitario desafiantes.`;
-
+export async function generateQuiz(knowledgeBase: string): Promise<QuizQuestion[]> {
+  const ai = getAI();
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
-    contents: [
-      { role: 'user', parts: [{ text: `Material:\n${knowledgeBase}\n\nTarea: ${prompt}` }] }
-    ],
+    contents: [{ role: 'user', parts: [{ text: `Genera 5 preguntas de examen tipo test sobre este material:\n${knowledgeBase}` }] }],
     config: {
       systemInstruction: SYSTEM_PROMPT,
       responseMimeType: "application/json",
@@ -60,10 +66,7 @@ export async function generateQuiz(knowledgeBase: string, topic?: string): Promi
           type: Type.OBJECT,
           properties: {
             question: { type: Type.STRING },
-            options: { 
-              type: Type.ARRAY, 
-              items: { type: Type.STRING } 
-            },
+            options: { type: Type.ARRAY, items: { type: Type.STRING } },
             correctAnswerIndex: { type: Type.NUMBER },
             explanation: { type: Type.STRING }
           },
@@ -72,26 +75,14 @@ export async function generateQuiz(knowledgeBase: string, topic?: string): Promi
       }
     },
   });
-
-  try {
-    return JSON.parse(response.text);
-  } catch (e) {
-    console.error("Error parsing quiz JSON", e);
-    return [];
-  }
+  return JSON.parse(response.text || "[]");
 }
 
 export async function generateExercise(knowledgeBase: string): Promise<Exercise> {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
-
-  const prompt = `Genera un ejercicio práctico detallado sobre Hacienda Pública basado en este material.
-  Debe incluir un enunciado, pasos sugeridos para la resolución y la solución final detallada.`;
-
+  const ai = getAI();
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
-    contents: [
-      { role: 'user', parts: [{ text: `Material:\n${knowledgeBase}\n\nTarea: ${prompt}` }] }
-    ],
+    contents: [{ role: 'user', parts: [{ text: `Crea un problema numérico de Hacienda Pública (ej: cálculo de impuesto, pérdida de eficiencia, o equilibrio con externalidad) basado en esto:\n${knowledgeBase}` }] }],
     config: {
       systemInstruction: SYSTEM_PROMPT,
       responseMimeType: "application/json",
@@ -107,10 +98,5 @@ export async function generateExercise(knowledgeBase: string): Promise<Exercise>
       }
     },
   });
-
-  try {
-    return JSON.parse(response.text);
-  } catch (e) {
-    throw new Error("Error generating exercise");
-  }
+  return JSON.parse(response.text || "{}");
 }

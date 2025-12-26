@@ -4,7 +4,7 @@ export enum AppMode {
   PRACTICE = 'PRACTICE',
   TEST = 'TEST',
   CONTENT = 'CONTENT',
-  SHARE = 'SHARE'
+  ADMIN = 'ADMIN'
 }
 
 export interface KnowledgeItem {
