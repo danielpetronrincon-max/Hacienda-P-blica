@@ -4,16 +4,15 @@ import { KnowledgeItem } from './types';
 /**
  * ESTE ES TU ARCHIVO DE DATOS DEFINITIVO.
  * 
- * Paso 1: Entra en tu web con ?admin=true
- * Paso 2: Carga tus temas y pulsa "Generar Código"
+ * Paso 1: Entra en tu web con el botón de "llave" (Admin)
+ * Paso 2: Carga tus temas y pulsa "GENERAR CÓDIGO GITHUB"
  * Paso 3: Borra TODO este archivo y pega lo que has copiado.
- * Paso 4: Sube el cambio a GitHub.
  */
 export const OFFICIAL_KNOWLEDGE: KnowledgeItem[] = [
   {
-    "id": "intro",
-    "title": "Bienvenida al Curso",
-    "content": "Hola. Soy el Tutor IA de la asignatura. Estoy entrenado con el material oficial del curso para resolver tus dudas, ayudarte con ejercicios prácticos y prepararte para el examen de Hacienda Pública.",
+    "id": "welcome-default",
+    "title": "Introducción a la Economía Pública",
+    "content": "La Hacienda Pública estudia la actividad económica del Sector Público. Sus funciones principales son: 1) Asignación eficiente de recursos ante fallos de mercado (bienes públicos, externalidades), 2) Redistribución de la renta para lograr equidad social y 3) Estabilización macroeconómica del ciclo económico. Los instrumentos principales son los ingresos públicos (impuestos) y el gasto público (presupuestos).",
     "timestamp": Date.now()
   }
 ];
